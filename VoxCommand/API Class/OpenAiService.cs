@@ -23,7 +23,7 @@ public class OpenAiService
     public async Task<string> SummarizeWeatherAsync(string weatherContent)
     {
         Console.WriteLine("Summarizing weather...");
-        return await SummarizeTextAsync(weatherContent, "Summarize today's weather using provided data. Round temps, abbreviate directions, focus on key details like temperature, wind, and humidity. Keep it brief and clear for TTS. Limit to 100 characters.");
+        return await SummarizeTextAsync(weatherContent, "Summarize today's weather using provided data. Round temps, abbreviate directions, focus on key details like temperature, wind, and humidity. Keep it brief and Human for TTS. Limit to 100 characters.");
     }
 
     public async Task<string> SummarizeWeatherAsyncWearable(string weatherContent)
