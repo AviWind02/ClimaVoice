@@ -6,6 +6,8 @@ using System.Threading.Tasks;
 using System.Runtime.InteropServices;
 using System.Speech.Synthesis;
 using ClimaVoice.API_Class;
+using System.Linq;
+using System.Timers;
 
 namespace ClimaVoice.Speech_Class
 {
@@ -17,9 +19,17 @@ namespace ClimaVoice.Speech_Class
         private static SpeechRecognizer msRecognizer;
         private static WeatherServices weatherServices;
         private static OpenAiService openAiService;
-        private static bool commandProcessed = false;
-        private static bool isCommandbeingProcessed = false;
+
         private static bool _muteInput = false;
+
+        private static bool isCommandbeingProcessed = false;
+        private static bool commandProcessed = false;
+        private static bool commandProcessing = false;
+        private static bool commandDelay = false;
+
+        private static Timer listeningTimer;
+        private const int ListeningPeriod = 10000; // 10 seconds
+
 
         public void muteSpeech(bool muteInput)
         {
@@ -57,6 +67,7 @@ namespace ClimaVoice.Speech_Class
             Console.WriteLine("Speech recognition services stopped.");
         }
 
+
         private static async void MsRecognizer_Recognized(object sender, SpeechRecognitionEventArgs e)
         {
             if (e.Result.Reason == ResultReason.RecognizedSpeech)
@@ -64,35 +75,45 @@ namespace ClimaVoice.Speech_Class
                 string command = e.Result.Text.ToLowerInvariant();
                 Console.WriteLine($"Recognized Speech: {command}");
 
-                //if (!command.Contains("eva"))
-                //{
-                //    Console.WriteLine("Wake word not found.");
-                //    return;
-                //}
-                // Check for specific keywords and handle them
-                if (!commandProcessed)
+                if (!command.Contains("luna") && !commandDelay)
                 {
+                    Console.WriteLine("Wake word not found.");
+                    return;
+                }
+
+                // Reset the timer if the command delay is active
+                if (commandDelay)
+                {
+                    ResetListeningTimer();
+                }
+
+                // Check for specific keywords and handle them
+                if (!commandProcessed || commandDelay)
+                {
+                    commandDelay = true;
+                    ResetListeningTimer();
+
                     if (command.Contains("wear"))
                     {
                         Console.WriteLine("Detected 'wear' in command");
                         string weatherData = await weatherServices.GetFormattedWeatherDataAsync(new APIKey().getCity());
                         string weatherSum = await openAiService.SummarizeWeatherAsyncWearable(weatherData);
-                        await SynthesizeAudioAsync(weatherSum); commandProcessed = true;
-
+                        await SynthesizeAudioAsync(weatherSum);
+                        commandProcessed = true;
                     }
                     else if (command.Contains("weather"))
                     {
                         Console.WriteLine("Detected 'weather' in command.");
-                        commandProcessed = true;
                         string weatherData = await weatherServices.GetFormattedWeatherDataAsync(new APIKey().getCity());
                         string weatherSum = await openAiService.SummarizeWeatherAsync(weatherData);
                         await SynthesizeAudioAsync(weatherSum);
-
+                        commandProcessed = true;
                     }
                     else
                     {
-                        commandProcessed = false;
-                        Console.WriteLine("Command does not contain 'wear' or 'weather', normal processing.");
+                        string commandSum = await openAiService.QAsync(command);
+                        await SynthesizeAudioAsync(commandSum);
+                        commandProcessed = true;
                     }
                 }
             }
@@ -100,7 +121,26 @@ namespace ClimaVoice.Speech_Class
             {
                 Console.WriteLine($"Recognition failed. Reason: {e.Result.Reason}");
             }
+        }
+
+        private static void ResetListeningTimer()
+        {
+            if (listeningTimer == null)
+            {
+                listeningTimer = new Timer(ListeningPeriod);
+                listeningTimer.Elapsed += OnListeningTimerElapsed;
+                listeningTimer.AutoReset = false;
+            }
+
+            listeningTimer.Stop();
+            listeningTimer.Start();
+        }
+
+        private static void OnListeningTimerElapsed(object sender, ElapsedEventArgs e)
+        {
+            commandDelay = false;
             commandProcessed = false;
+            Console.WriteLine("Listening period ended.");
         }
 
         private static void MsRecognizer_Canceled(object sender, SpeechRecognitionCanceledEventArgs e)
@@ -137,6 +177,5 @@ namespace ClimaVoice.Speech_Class
                 }
             }
         }
-
     }
 }

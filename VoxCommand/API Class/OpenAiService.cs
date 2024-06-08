@@ -19,7 +19,11 @@ public class OpenAiService
         _httpClient = new HttpClient();
         _httpClient.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _apiKey);
     }
-
+    public async Task<string> QAsync(string weatherContent)
+    {
+        Console.WriteLine("Summarizing Question...");
+        return await SummarizeTextAsync(weatherContent, "Answer this qestion like a computer AI would, It would need to be in talking format. Output is used in TTS.");
+    }
     public async Task<string> SummarizeWeatherAsync(string weatherContent)
     {
         Console.WriteLine("Summarizing weather...");
@@ -41,7 +45,7 @@ public class OpenAiService
 
         var data = new
         {
-            model = "gpt-3.5-turbo-16k-0613",
+            model = "gpt-3.5-turbo",
             messages = new[]
             {
                     new { role = "system", content = "You are a helpful assistant." },
