@@ -8,6 +8,11 @@ using System.Speech.Synthesis;
 using ClimaVoice.API_Class;
 using System.Linq;
 using System.Timers;
+using ClimaVoice.MediaControl_Class;
+using VoxCommand.Other_Class;
+using System.Text.RegularExpressions;
+using static System.Net.Mime.MediaTypeNames;
+using OpenQA.Selenium.DevTools.V121.Debugger;
 
 namespace ClimaVoice.Speech_Class
 {
@@ -40,6 +45,11 @@ namespace ClimaVoice.Speech_Class
             weatherServices = new WeatherServices();
             openAiService = new OpenAiService();
         }
+
+        public SpeechRecognition(string V)
+        {
+
+        }
         [DllImport("kernel32.dll", SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
         static extern bool AllocConsole();
@@ -50,7 +60,7 @@ namespace ClimaVoice.Speech_Class
             synthesizer.SetOutputToDefaultAudioDevice();
 
             Console.WriteLine("Setting up Cognitive Services speech recognition...");
-            var apiKey = new APIKey().getAPIKey();
+            var apiKey = HiddenKeys.APIKeyAzureSpeech();
             var config = SpeechConfig.FromSubscription(apiKey, "eastus");
             msRecognizer = new SpeechRecognizer(config);
 
@@ -75,72 +85,32 @@ namespace ClimaVoice.Speech_Class
                 string command = e.Result.Text.ToLowerInvariant();
                 Console.WriteLine($"Recognized Speech: {command}");
 
-                if (!command.Contains("luna") && !commandDelay)
+                if (!command.Contains("epsilon") && !commandDelay)
                 {
                     Console.WriteLine("Wake word not found.");
                     return;
                 }
 
-                // Reset the timer if the command delay is active
-                if (commandDelay)
+                if (!commandProcessed)
                 {
-                    ResetListeningTimer();
-                }
 
-                // Check for specific keywords and handle them
-                if (!commandProcessed || commandDelay)
-                {
-                    commandDelay = true;
-                    ResetListeningTimer();
+                    string commandSum = await openAiService.QuestionAsync(command);
+                    switch (ExtractTag(commandSum, false))
+                    {
+                        case "%media": PlaybackControl.AdjustMediaBasedOnCommand(ExtractTag(commandSum)); break;
+                        case "%vol": VolumeControl.AdjustVolumeBasedOnCommand(ExtractTag(commandSum)); break;
 
-                    if (command.Contains("wear"))
-                    {
-                        Console.WriteLine("Detected 'wear' in command");
-                        string weatherData = await weatherServices.GetFormattedWeatherDataAsync(new APIKey().getCity());
-                        string weatherSum = await openAiService.SummarizeWeatherAsyncWearable(weatherData);
-                        await SynthesizeAudioAsync(weatherSum);
-                        commandProcessed = true;
                     }
-                    else if (command.Contains("weather"))
-                    {
-                        Console.WriteLine("Detected 'weather' in command.");
-                        string weatherData = await weatherServices.GetFormattedWeatherDataAsync(new APIKey().getCity());
-                        string weatherSum = await openAiService.SummarizeWeatherAsync(weatherData);
-                        await SynthesizeAudioAsync(weatherSum);
-                        commandProcessed = true;
-                    }
-                    else
-                    {
-                        string commandSum = await openAiService.QAsync(command);
-                        await SynthesizeAudioAsync(commandSum);
-                        commandProcessed = true;
-                    }
+                    commandProcessed = true;
+                    await SynthesizeAudioAsync(commandSum);
+
                 }
             }
             else
             {
                 Console.WriteLine($"Recognition failed. Reason: {e.Result.Reason}");
             }
-        }
-
-        private static void ResetListeningTimer()
-        {
-            if (listeningTimer == null)
-            {
-                listeningTimer = new Timer(ListeningPeriod);
-                listeningTimer.Elapsed += OnListeningTimerElapsed;
-                listeningTimer.AutoReset = false;
-            }
-
-            listeningTimer.Stop();
-            listeningTimer.Start();
-        }
-
-        private static void OnListeningTimerElapsed(object sender, ElapsedEventArgs e)
-        {
-            commandDelay = false;
             commandProcessed = false;
-            Console.WriteLine("Listening period ended.");
         }
 
         private static void MsRecognizer_Canceled(object sender, SpeechRecognitionCanceledEventArgs e)
@@ -151,20 +121,37 @@ namespace ClimaVoice.Speech_Class
                 Console.WriteLine($"Error Code: {e.ErrorCode}. Error Details: {e.ErrorDetails}");
             }
         }
-
+        public static string ExtractTag(string text, bool fullTag = true)
+        {
+            
+            string fullTagPattern = @"%\w+(\.\w+)*";// Regular expression to match tags like %tag, %tag.Tag, or %tag.Tag.SubTag
+            string firstTagPattern = @"%\w+"; // Regular expression to match only the first part of the tag like %tag
+            string pattern = fullTag ? fullTagPattern : firstTagPattern;
+            
+            // Match the first occurrence of the pattern
+            Match match = Regex.Match(text, pattern);
+            Console.WriteLine($"Extracted key: {match.Value}");
+            return match.Success ? match.Value : text;
+        }
 
         public static async Task SynthesizeAudioAsync(string text)
         {
-            var apiKey = new APIKey().getAPIKey();
+            // Regular expression to match tags like %tag, %tag.subtag, or %tag.subtag.childsubtag
+            string pattern = @"%\w+(\.\w+){0,2}";
+
+            // Replace the tagged items with an empty string
+            string cleanedText = Regex.Replace(text, pattern, string.Empty);
+
+            var apiKey = HiddenKeys.APIKeyAzureSpeech();
             var config = SpeechConfig.FromSubscription(apiKey, "eastus");
-            config.SpeechSynthesisVoiceName = "en-GB-OliverNeural";
+            config.SpeechSynthesisVoiceName = "en-US-AndrewNeural";
 
             using (var localSynthesizer = new Microsoft.CognitiveServices.Speech.SpeechSynthesizer(config))
             {
-                var result = await localSynthesizer.SpeakTextAsync(text);
+                var result = await localSynthesizer.SpeakTextAsync(cleanedText);
                 if (result.Reason == ResultReason.SynthesizingAudioCompleted)
                 {
-                    Console.WriteLine($"Audio synthesis completed for text: {text}");
+                    Console.WriteLine($"Audio synthesis completed for text: {cleanedText}");
                 }
                 else if (result.Reason == ResultReason.Canceled)
                 {

@@ -9,7 +9,7 @@ namespace ClimaVoice.API_Class
 {
     internal class WeatherServices
     {
-        private readonly string _apiKey = new APIKey().getAPIKey_OpenWeather(); // Replace with your actual API key
+        private readonly string _apiKey = HiddenKeys.APIKeyOpenWeather(); // Replace with your actual API key
         private readonly HttpClient _httpClient = new HttpClient();
 
         public async Task<string> GetFormattedWeatherDataAsync(string city)

@@ -13,45 +13,49 @@ public class OpenAiService
     private string _apiKey;
     private const string OpenAiUrl = "https://api.openai.com/v1/chat/completions";
 
+
     public OpenAiService()
     {
-        _apiKey = new APIKey().getAPIKey_OpenAI();
+        _apiKey = HiddenKeys.APIKeyOpenAI_Epsilon();
         _httpClient = new HttpClient();
         _httpClient.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _apiKey);
     }
-    public async Task<string> QAsync(string weatherContent)
+    public async Task<string> QuestionAsync(string Content)
     {
         Console.WriteLine("Summarizing Question...");
-        return await SummarizeTextAsync(weatherContent, "Answer this qestion like a computer AI would, It would need to be in talking format. Output is used in TTS.");
-    }
-    public async Task<string> SummarizeWeatherAsync(string weatherContent)
-    {
-        Console.WriteLine("Summarizing weather...");
-        return await SummarizeTextAsync(weatherContent, "Summarize today's weather using provided data. Round temps, abbreviate directions, focus on key details like temperature, wind, and humidity. Keep it brief and Human for TTS. Limit to 100 characters.");
+        return await SummarizeTextAsync(Content);
     }
 
-    public async Task<string> SummarizeWeatherAsyncWearable(string weatherContent)
-    {
-        Console.WriteLine("Summarizing weather...");
-        return await SummarizeTextAsync(weatherContent, "Summarize today's weather from provided data. Suggest appropriate attire based on conditions. Use a conversational tone, like commenting on chill or rain. Keep it concise, under 150 characters.");
-    }
-    private async Task<string> SummarizeTextAsync(string content, string instruction)
+    private async Task<string> SummarizeTextAsync(string content)
     {
         Console.WriteLine("Starting text summarization...");
-        int inputTokens = CountTokens(instruction + " " + content);
+        int inputTokens = CountTokens(content);
         Console.WriteLine($"Estimated input tokens: {inputTokens}");
         var initialMemory = GC.GetTotalMemory(true);
         Console.WriteLine($"Initial memory usage: {initialMemory} bytes");
 
+
+        var messages = new List<dynamic>
+        {
+            new { role = "system", content = "You are a helpful assistant." },
+            new { role = "user", content = content }
+        };
+
+        if (string.IsNullOrEmpty(content))
+        {
+            return "Content is null or empty.";
+        }
+
         var data = new
         {
-            model = "gpt-3.5-turbo",
-            messages = new[]
-            {
-                    new { role = "system", content = "You are a helpful assistant." },
-                    new { role = "user", content = instruction },
-                    new { role = "user", content = content }
-                }
+            model = HiddenKeys.ModelKeyGPT3Tuned(),
+            messages = messages.ToArray(),
+            //Hard coded for now
+            temperature = 1,
+            max_tokens = 256,
+            top_p = 1,
+            frequency_penalty = 0,
+            presence_penalty = 0
         };
 
         var contentJson = new StringContent(JsonConvert.SerializeObject(data), Encoding.UTF8, "application/json");
