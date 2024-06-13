@@ -4,6 +4,7 @@ using System.Net.Http;
 using System.Threading.Tasks;
 using System.Diagnostics;
 using ClimaVoice.Speech_Class;
+using OpenQA.Selenium;
 
 namespace ClimaVoice.API_Class
 {
@@ -11,7 +12,12 @@ namespace ClimaVoice.API_Class
     {
         private readonly string _apiKey = HiddenKeys.APIKeyOpenWeather(); // Replace with your actual API key
         private readonly HttpClient _httpClient = new HttpClient();
+        private static OpenAiService openAiService;
 
+        public WeatherServices(OpenAiService _openAiService)
+        {
+            openAiService = _openAiService;
+        }
         public async Task<string> GetFormattedWeatherDataAsync(string city)
         {
             try
@@ -70,6 +76,18 @@ namespace ClimaVoice.API_Class
             string direction = directions[index % 16];
             Console.WriteLine($"Converted wind direction: {direction}");
             return direction;
+        }
+
+        public async void GiveDataToGPTBasedOnCommand(string command)
+        {
+            if (command.Contains("%weather"))
+            {
+                string weatherdata = await GetFormattedWeatherDataAsync(HiddenKeys.MyCity());
+                string datawithcommand = $"Provide weather information based on the provided data: {weatherdata} | {command}";
+                Console.WriteLine($"Input: {datawithcommand}");
+                string SST = await openAiService.QuestionAsync(datawithcommand);
+                await SpeechRecognition.SynthesizeAudioAsync(SST);
+            }
         }
     }
 }

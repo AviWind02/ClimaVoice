@@ -42,8 +42,8 @@ namespace ClimaVoice.Speech_Class
         }
         public SpeechRecognition()
         {
-            weatherServices = new WeatherServices();
             openAiService = new OpenAiService();
+            weatherServices = new WeatherServices(openAiService);
         }
 
         public SpeechRecognition(string V)
@@ -95,14 +95,16 @@ namespace ClimaVoice.Speech_Class
                 {
 
                     string commandSum = await openAiService.QuestionAsync(command);
+                    await SynthesizeAudioAsync(commandSum);
                     switch (ExtractTag(commandSum, false))
                     {
                         case "%media": PlaybackControl.AdjustMediaBasedOnCommand(ExtractTag(commandSum)); break;
                         case "%vol": VolumeControl.AdjustVolumeBasedOnCommand(ExtractTag(commandSum)); break;
-
+                        case "%weather": weatherServices.GiveDataToGPTBasedOnCommand(commandSum); break;
                     }
+                    
+
                     commandProcessed = true;
-                    await SynthesizeAudioAsync(commandSum);
 
                 }
             }
