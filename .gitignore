@@ -362,3 +362,4 @@ MigrationBackup/
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
 /VoxCommand/API Class/APIKey.cs
+/VoxCommand/API Class/HiddenKeys.cs
