@@ -102,7 +102,6 @@ namespace ClimaVoice.Speech_Class
                         case "%vol": VolumeControl.AdjustVolumeBasedOnCommand(ExtractTag(commandSum)); break;
                         case "%weather": weatherServices.GiveDataToGPTBasedOnCommand(commandSum); break;
                     }
-                    
 
                     commandProcessed = true;
 

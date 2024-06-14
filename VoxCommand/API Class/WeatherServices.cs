@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using System.Diagnostics;
 using ClimaVoice.Speech_Class;
 using OpenQA.Selenium;
+using System.Linq;
 
 namespace ClimaVoice.API_Class
 {
@@ -68,6 +69,52 @@ namespace ClimaVoice.API_Class
             return formattedJson;
         }
 
+        private JObject FormattedForAI_Forcast(JObject weatherData)
+        {
+            Console.WriteLine("Formatting data for AI.");
+
+            if (weatherData == null)
+            {
+                Console.WriteLine("Weather data is null. Aborting formatting.");
+                return null;
+            }
+
+            var cityName = weatherData["city"]?["name"];
+            var weatherList = weatherData["list"];
+
+            if (cityName == null || weatherList == null || !weatherList.Any())
+            {
+                Console.WriteLine("Critical weather data is missing. Aborting formatting.");
+                return null;
+            }
+
+            var formattedJson = new JObject
+            {
+                ["Location"] = cityName,
+                ["Today's Weather"] = new JObject
+                {
+                    ["Temperature"] = weatherList[0]?["main"]?["temp"],
+                    ["Feels Like Temperature"] = weatherList[0]?["main"]?["feels_like"],
+                    ["Description"] = weatherList[0]?["weather"]?[0]?["description"],
+                    ["Visibility"] = weatherList[0]?["visibility"],
+                    ["Humidity"] = weatherList[0]?["main"]?["humidity"],
+                    ["Wind Speed"] = weatherList[0]?["wind"]?["speed"]
+                },
+                ["Next Days"] = new JArray(
+                    weatherList.Take(5).Select(day => new JObject
+                    {
+                        ["Date"] = day?["dt_txt"],
+                        ["Temperature"] = day?["main"]?["temp"],
+                        ["Description"] = day?["weather"]?[0]?["description"]
+                    }).Where(day => day["Date"] != null && day["Temperature"] != null && day["Description"] != null)
+                )
+            };
+
+            Console.WriteLine("Data formatted successfully.");
+            return formattedJson;
+        }
+
+
         private string ConvertDegreesToDirection(double degrees)
         {
             Console.WriteLine($"Converting wind direction from degrees: {degrees}");
@@ -83,7 +130,7 @@ namespace ClimaVoice.API_Class
             if (command.Contains("%weather"))
             {
                 string weatherdata = await GetFormattedWeatherDataAsync(HiddenKeys.MyCity());
-                string datawithcommand = $"Provide weather information based on the provided data: {weatherdata} | {command}";
+                string datawithcommand = $"Provide weather information based on the provided data, {command}: {weatherdata}";
                 Console.WriteLine($"Input: {datawithcommand}");
                 string SST = await openAiService.QuestionAsync(datawithcommand);
                 await SpeechRecognition.SynthesizeAudioAsync(SST);
