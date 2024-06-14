@@ -30,7 +30,7 @@ namespace ClimaVoice.Speech_Class
         private static bool isCommandbeingProcessed = false;
         private static bool commandProcessed = false;
         private static bool commandProcessing = false;
-        private static bool commandDelay = false;
+        private static bool wakeWordSaid = false;
 
         private static Timer listeningTimer;
         private const int ListeningPeriod = 10000; // 10 seconds
@@ -84,15 +84,21 @@ namespace ClimaVoice.Speech_Class
             {
                 string command = e.Result.Text.ToLowerInvariant();
                 Console.WriteLine($"Recognized Speech: {command}");
-
-                if (!command.Contains("epsilon") && !commandDelay)
+                if (command.Contains("reset chat"))
+                {
+                    await SynthesizeAudioAsync("Reseting command processed & wake word said.");// Kills the 10sec rule
+                    commandProcessed = false;
+                    wakeWordSaid = false;
+                    return;
+                }
+                if (!command.Contains("ace") && !wakeWordSaid)
                 {
                     Console.WriteLine("Wake word not found.");
                     return;
                 }
-
                 if (!commandProcessed)
                 {
+             
 
                     string commandSum = await openAiService.QuestionAsync(command);
                     await SynthesizeAudioAsync(commandSum);
@@ -104,6 +110,7 @@ namespace ClimaVoice.Speech_Class
                     }
 
                     commandProcessed = true;
+                    wakeWordSaid = true;
 
                 }
             }
@@ -112,6 +119,8 @@ namespace ClimaVoice.Speech_Class
                 Console.WriteLine($"Recognition failed. Reason: {e.Result.Reason}");
             }
             commandProcessed = false;
+            Console.WriteLine($"Command is now Processed set to {commandProcessed}");
+            await SetWakeWordSaidFalseAfterDelay();// Keeps the chat open for a follow up, for 10 seconds.
         }
 
         private static void MsRecognizer_Canceled(object sender, SpeechRecognitionCanceledEventArgs e)
@@ -134,7 +143,12 @@ namespace ClimaVoice.Speech_Class
             Console.WriteLine($"Extracted key: {match.Value}");
             return match.Success ? match.Value : text;
         }
-
+        static async Task SetWakeWordSaidFalseAfterDelay()
+        {
+            await Task.Delay(ListeningPeriod);
+            wakeWordSaid = false;
+            Console.WriteLine($"wakeWordSaid is now set to {wakeWordSaid}");
+        }
         public static async Task SynthesizeAudioAsync(string text)
         {
             // Regular expression to match tags like %tag, %tag.subtag, or %tag.subtag.childsubtag
